@@ -4,6 +4,14 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap');
 
+:root {
+  --primary: #E8728A;
+  --primary-hover: #D65E78;
+  --primary-light: #F5A3B5;
+  --primary-50: #FEF1F3;
+  --gradient-romantic: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 50%, #ede7f6 100%);
+}
+
 body {
   font-family: 'Inter', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
   background: #FAFAFA;
@@ -23,4 +31,48 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #A3A3A3;
+}
+
+/* 输入框聚焦动画 */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+/* 渐变背景工具类 */
+.bg-romantic-gradient {
+  background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 50%, #ede7f6 100%);
+}
+
+.bg-romantic-gradient-2 {
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 25%, #f5e6ff 50%, #ede9fe 75%, #e0e7ff 100%);
+}
+
+/* 浮动动画 */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-float-delay {
+  animation: float 3s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+.animate-float-delay-2 {
+  animation: float 3s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+/* 安全区域填充 */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0);
 }
