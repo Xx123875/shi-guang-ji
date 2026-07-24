@@ -7,12 +7,13 @@ import Link from 'next/link';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
-  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
-  const { signUp, verifyOtp, user, profile, loading: authLoading } = useAuth();
+  const { signUp, signIn, user, profile, loading: authLoading } = useAuth();
   const router = useRouter();
 
   // 如果已登录且有 profile，跳转首页
@@ -27,38 +28,48 @@ export default function LoginPage() {
     return null;
   }
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (!email.trim() || !password) return;
 
-    setLoading(true);
     setError('');
-
-    const { error } = await signUp(email.trim());
-    setLoading(false);
-
-    if (error) {
-      setError(error);
-    } else {
-      setSuccessMsg('验证码已发送到你的邮箱');
-      setStep('otp');
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || otp.length !== 6) return;
-
+    setSuccessMsg('');
     setLoading(true);
-    setError('');
 
-    const { error } = await verifyOtp(email.trim(), otp);
-    setLoading(false);
-
-    if (error) {
-      setError(error);
+    if (isRegister) {
+      // 注册
+      if (password.length < 6) {
+        setError('密码至少 6 位');
+        setLoading(false);
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError('两次输入的密码不一致');
+        setLoading(false);
+        return;
+      }
+      const { error } = await signUp(email.trim(), password);
+      setLoading(false);
+      if (error) {
+        // 检查是否是触发器错误（profiles 表插入失败）
+        if (error.includes('Database error') || error.includes('trigger')) {
+          setError('注册时创建资料失败，请稍后重试');
+        } else {
+          setError(error);
+        }
+      } else {
+        setSuccessMsg('注册成功！请登录你的账户');
+        setIsRegister(false);
+        setPassword('');
+        setConfirmPassword('');
+      }
     } else {
-      // 验证成功，跳转到设置页或首页（由上面的条件判断处理）
+      // 登录
+      const { error } = await signIn(email.trim(), password);
+      setLoading(false);
+      if (error) {
+        setError(error);
+      }
     }
   };
 
@@ -76,99 +87,95 @@ export default function LoginPage() {
           <p className="text-gray-500 text-sm">记录我们的每一段时光</p>
         </div>
 
-        {/* 登录卡片 */}
+        {/* 登录/注册卡片 */}
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-8">
-          {step === 'email' ? (
-            <form onSubmit={handleSendOtp} className="space-y-5">
-              <h2 className="text-xl font-semibold text-gray-800 text-center">
-                登录 / 注册
-              </h2>
-              <p className="text-sm text-gray-500 text-center">
-                输入你的邮箱，我们将发送验证码
-              </p>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <h2 className="text-xl font-semibold text-gray-800 text-center">
+              {isRegister ? '创建账户' : '登录'}
+            </h2>
+            <p className="text-sm text-gray-500 text-center">
+              {isRegister ? '设置邮箱和密码来注册新账户' : '输入你的邮箱和密码登录'}
+            </p>
 
+            {/* 邮箱 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">邮箱地址</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                required
+                className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              />
+            </div>
+
+            {/* 密码 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                密码 {isRegister && <span className="text-gray-400 font-normal">(至少 6 位)</span>}
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isRegister ? '设置密码' : '输入密码'}
+                required
+                minLength={6}
+                className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              />
+            </div>
+
+            {/* 确认密码（仅注册时显示） */}
+            {isRegister && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">邮箱地址</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">确认密码</label>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="再次输入密码"
                   required
+                  minLength={6}
                   className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
+            )}
 
-              {error && (
-                <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? '发送中...' : '发送验证码'}
-              </button>
-            </form>
-          ) : (
-            <form onSubmit={handleVerifyOtp} className="space-y-5">
-              <h2 className="text-xl font-semibold text-gray-800 text-center">
-                输入验证码
-              </h2>
-              <p className="text-sm text-gray-500 text-center">
-                验证码已发送至 <span className="text-primary font-medium">{email}</span>
-              </p>
-
-              {successMsg && (
-                <div className="bg-green-50 text-green-600 text-sm p-3 rounded-lg">
-                  {successMsg}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">6位验证码</label>
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="000000"
-                  maxLength={6}
-                  required
-                  className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/30 focus:border-primary text-center text-2xl tracking-[0.5em] font-mono"
-                />
+            {error && (
+              <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">
+                {error}
               </div>
+            )}
 
-              {error && (
-                <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">
-                  {error}
-                </div>
-              )}
+            {successMsg && (
+              <div className="bg-green-50 text-green-600 text-sm p-3 rounded-lg">
+                {successMsg}
+              </div>
+            )}
 
-              <button
-                type="submit"
-                disabled={loading || otp.length !== 6}
-                className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? '验证中...' : '验证登录'}
-              </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary text-white py-2.5 rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (isRegister ? '注册中...' : '登录中...') : (isRegister ? '注册' : '登录')}
+            </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setStep('email');
-                  setError('');
-                  setSuccessMsg('');
-                  setOtp('');
-                }}
-                className="w-full text-sm text-gray-500 hover:text-gray-700"
-              >
-                返回修改邮箱
-              </button>
-            </form>
-          )}
+            {/* 切换登录/注册 */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsRegister(!isRegister);
+                setError('');
+                setSuccessMsg('');
+                setConfirmPassword('');
+              }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700"
+            >
+              {isRegister ? '已有账户？去登录' : '没有账户？去注册'}
+            </button>
+          </form>
         </div>
 
         {/* 底部装饰 */}

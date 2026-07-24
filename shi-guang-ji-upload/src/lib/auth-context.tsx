@@ -25,8 +25,8 @@ interface AuthContextType {
   profile: Profile | null;
   partner: Profile | null;
   loading: boolean;
-  signUp: (email: string) => Promise<{ error: string | null }>;
-  verifyOtp: (email: string, token: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   configured: boolean;
@@ -131,24 +131,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchProfile, fetchPartner]);
 
-  const signUp = async (email: string): Promise<{ error: string | null }> => {
-    if (!supabase) return { error: 'Supabase 未配置' };
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: true,
-      },
-    });
-
-    return { error: error?.message ?? null };
+  // 生成邀请码
+  const generateInviteCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
   };
 
-  const verifyOtp = async (email: string, token: string): Promise<{ error: string | null }> => {
+  // 邮箱+密码注册
+  const signUp = async (email: string, password: string): Promise<{ error: string | null }> => {
     if (!supabase) return { error: 'Supabase 未配置' };
-    const { error } = await supabase.auth.verifyOtp({
+    const { data, error } = await supabase.auth.signUp({
       email,
-      token,
-      type: 'email',
+      password,
+    });
+
+    if (error) return { error: error.message ?? null };
+
+    // 注册成功后，确保 profile 存在（作为触发器的 fallback）
+    if (data.user) {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', data.user.id)
+        .single();
+
+      if (!existingProfile) {
+        // 手动创建 profile
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          email: email.trim(),
+          invite_code: generateInviteCode(),
+        });
+      }
+    }
+
+    return { error: null };
+  };
+
+  // 邮箱+密码登录
+  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+    if (!supabase) return { error: 'Supabase 未配置' };
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
     return { error: error?.message ?? null };
@@ -171,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         partner,
         loading,
         signUp,
-        verifyOtp,
+        signIn,
         signOut,
         refreshProfile,
         configured,
