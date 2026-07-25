@@ -165,7 +165,7 @@ export default function SettingsPage() {
                 {profile?.nickname ? profile.nickname.charAt(0) : '?'}
               </div>
             )}
-            {/* 上传按钮覆盖层 */}
+            {/* 上传按钮覆盖层（桌面端hover显示） */}
             <button
               onClick={() => avatarInputRef.current?.click()}
               disabled={avatarUploading}
@@ -181,9 +181,16 @@ export default function SettingsPage() {
               )}
             </button>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">点击头像更换</p>
-            <p className="text-xs text-gray-400">支持 JPG、PNG，最大 2MB</p>
+          <div className="flex-1">
+            <p className="text-sm text-gray-600">点击头像或右侧按钮更换</p>
+            <p className="text-xs text-gray-400 mt-0.5">支持 JPG、PNG，最大 2MB</p>
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="mt-2 text-xs bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
+            >
+              {avatarUploading ? '上传中...' : '更换头像'}
+            </button>
           </div>
           <input
             ref={avatarInputRef}
