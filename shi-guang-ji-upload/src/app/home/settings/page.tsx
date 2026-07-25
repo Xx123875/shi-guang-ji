@@ -42,56 +42,41 @@ export default function SettingsPage() {
 
     setMessage(null);
 
-    const { data: targetProfile, error: queryError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('invite_code', inviteCodeInput.trim().toUpperCase())
-      .single();
-
-    if (queryError || !targetProfile) {
-      setMessage({ type: 'error', text: '邀请码无效' });
-      return;
-    }
-
-    if (targetProfile.id === user.id) {
-      setMessage({ type: 'error', text: '不能和自己绑定' });
-      return;
-    }
-
-    if (targetProfile.partner_id) {
-      setMessage({ type: 'error', text: '该用户已绑定其他人' });
-      return;
-    }
-
-    // 双向绑定
-    const { error } = await supabase
-      .from('profiles')
-      .update({ partner_id: targetProfile.id })
-      .eq('id', user.id);
+    // 使用 RPC 函数完成原子性双向绑定（绕过 RLS 限制）
+    const { data, error } = await supabase.rpc('bind_partner', {
+      p_user_id: user.id,
+      p_target_invite_code: inviteCodeInput.trim().toUpperCase(),
+    });
 
     if (error) {
-      setMessage({ type: 'error', text: '绑定失败' });
+      setMessage({ type: 'error', text: '绑定失败：' + (error.message || '未知错误') });
       return;
     }
 
-    await supabase
-      .from('profiles')
-      .update({ partner_id: user.id })
-      .eq('id', targetProfile.id);
+    if (!data?.success) {
+      setMessage({ type: 'error', text: data?.error || '绑定失败' });
+      return;
+    }
 
-    setMessage({ type: 'success', text: `已成功与 ${targetProfile.nickname || targetProfile.email} 绑定` });
+    setMessage({ type: 'success', text: `已成功与 ${data.partner_nickname || '伴侣'} 绑定` });
     setInviteCodeInput('');
     refreshProfile();
   };
 
   const handleUnbind = async () => {
-    if (!user || !partner || !supabase) return;
+    if (!user || !supabase) return;
 
     if (!confirm('确定要解除伴侣绑定吗？')) return;
 
-    // 双向解绑
-    await supabase.from('profiles').update({ partner_id: null }).eq('id', user.id);
-    await supabase.from('profiles').update({ partner_id: null }).eq('id', partner.id);
+    // 使用 RPC 函数完成原子性双向解绑
+    const { data, error } = await supabase.rpc('unbind_partner', {
+      p_user_id: user.id,
+    });
+
+    if (error || !data?.success) {
+      setMessage({ type: 'error', text: data?.error || '解绑失败' });
+      return;
+    }
 
     setMessage({ type: 'success', text: '已解除伴侣绑定' });
     refreshProfile();
