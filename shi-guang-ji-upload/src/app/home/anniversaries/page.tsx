@@ -82,15 +82,18 @@ export default function AnniversariesPage() {
     }
   };
 
-  // 计算在一起总天数
-  const totalDays = profile?.relationship_start_date
-    ? Math.ceil((Date.now() - new Date(profile.relationship_start_date).getTime()) / (1000 * 60 * 60 * 24))
-    : 0;
+  // 自动从纪念日最早日期计算在一起总天数
+  const totalDays = (() => {
+    if (anniversaries.length === 0) return 0;
+    const earliest = anniversaries.reduce((min, a) => a.date < min ? a.date : min, anniversaries[0].date);
+    const days = Math.ceil((Date.now() - new Date(earliest + 'T00:00:00+08:00').getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, days);
+  })();
 
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* 主倒计时卡片 */}
-      {totalDays > 0 && (
+      {anniversaries.length > 0 && (
         <div className="bg-gradient-to-br from-primary-100 via-primary-50 to-white rounded-2xl p-8 text-center relative overflow-hidden">
           <div className="absolute top-4 left-8 text-2xl opacity-30">💕</div>
           <div className="absolute top-8 right-12 text-xl opacity-20">🌸</div>
@@ -165,7 +168,7 @@ export default function AnniversariesPage() {
       {/* 纪念日网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {anniversaries.map((item) => {
-          const { daysLeft } = getDaysInfo(item.date);
+          const { daysLeft, daysPassed } = getDaysInfo(item.date);
           return (
             <div key={item.id} className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3 mb-3">
@@ -175,18 +178,31 @@ export default function AnniversariesPage() {
                   <p className="text-xs text-gray-400">{item.date}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between">
+              <div className="space-y-2">
                 <div
                   className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                    daysLeft === 0
-                      ? 'bg-red-50 text-red-500'
-                      : daysLeft < 0
-                      ? 'bg-gray-100 text-gray-500'
-                      : 'bg-primary-50 text-primary'
+                    daysPassed > 0
+                      ? 'bg-primary-50 text-primary'
+                      : 'bg-gray-100 text-gray-500'
                   }`}
                 >
-                  {daysLeft === 0 ? '就是今天！' : daysLeft < 0 ? `已过${Math.abs(daysLeft)}天` : `还有${daysLeft}天`}
+                  已过去 {daysPassed} 天
                 </div>
+                <div className="block">
+                  <span
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                      daysLeft === 0
+                        ? 'bg-red-50 text-red-500'
+                        : daysLeft < 0
+                        ? 'bg-gray-100 text-gray-500'
+                        : 'bg-green-50 text-green-600'
+                    }`}
+                  >
+                    {daysLeft === 0 ? '就是今天！' : daysLeft < 0 ? `已过${Math.abs(daysLeft)}天` : `距下次还有 ${daysLeft} 天`}
+                  </span>
+                </div>
+              </div>
+              <div className="flex justify-end mt-3">
                 <button
                   onClick={() => handleDelete(item.id)}
                   className="text-xs text-gray-400 hover:text-red-500"
