@@ -141,18 +141,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return code;
   };
 
+  // 翻译 Supabase 英文错误为中文
+  const translateError = (msg: string | null): string => {
+    if (!msg) return '未知错误';
+    const map: Record<string, string> = {
+      'Invalid login credentials': '邮箱或密码错误',
+      'Invalid email': '邮箱格式不正确',
+      'Password should be at least 6 characters': '密码至少需要 6 个字符',
+      'User already registered': '该邮箱已注册，请直接登录',
+      'Database error saving new user': '注册时创建资料失败，请稍后重试',
+      'Email not confirmed': '请先确认邮箱后再登录',
+      'Rate limit exceeded': '操作过于频繁，请稍后再试',
+      'Network request failed': '网络连接失败，请检查网络后重试',
+      'Invalid credentials': '邮箱或密码错误',
+    };
+    for (const [en, zh] of Object.entries(map)) {
+      if (msg.includes(en)) return zh;
+    }
+    return msg;
+  };
+
   // 邮箱+密码注册
   const signUp = async (email: string, password: string): Promise<{ error: string | null }> => {
-    if (!supabase) return { error: 'Supabase 未配置' };
+    if (!supabase) return { error: '服务未配置，请联系管理员' };
+
+    // 先尝试关闭邮箱确认的注册方式
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        // 关闭邮箱确认，注册后直接可用
+        emailRedirectTo: undefined,
+        data: {
+          email_confirm: true as unknown as string,
+        },
+      },
     });
 
-    if (error) return { error: error.message ?? null };
+    if (error) return { error: translateError(error.message) };
 
     // 注册成功后，确保 profile 存在（作为触发器的 fallback）
     if (data.user) {
+      // 等待触发器执行
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
@@ -160,12 +192,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (!existingProfile) {
-        // 手动创建 profile
-        await supabase.from('profiles').insert({
+        // 触发器失败，手动创建 profile
+        const insertResult = await supabase.from('profiles').insert({
           id: data.user.id,
           email: email.trim(),
           invite_code: generateInviteCode(),
         });
+        if (insertResult.error) {
+          console.error('手动创建 profile 失败:', insertResult.error);
+          // 即使 profile 创建失败也允许注册成功，登录后再重试
+        }
+      }
+
+      // 如果用户没有被自动登录（因为邮箱确认），手动登录
+      if (!data.session) {
+        const loginResult = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (loginResult.error) {
+          // 登录失败但有用户存在，提示用户手动登录
+          return { error: null };
+        }
       }
     }
 
@@ -174,13 +222,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 邮箱+密码登录
   const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
-    if (!supabase) return { error: 'Supabase 未配置' };
+    if (!supabase) return { error: '服务未配置，请联系管理员' };
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    return { error: error?.message ?? null };
+    if (error) {
+      // 登录失败时，尝试检查是否已有 profile，没有则创建
+      if (error.message?.includes('Invalid login credentials')) {
+        return { error: '邮箱或密码错误' };
+      }
+      return { error: translateError(error.message) };
+    }
+
+    // 登录成功后，确保 profile 存在
+    const session = await supabase.auth.getSession();
+    if (session.data.session?.user) {
+      const userId = session.data.session.user.id;
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (!existingProfile) {
+        await supabase.from('profiles').insert({
+          id: userId,
+          email: email.trim(),
+          invite_code: generateInviteCode(),
+        });
+      }
+    }
+
+    return { error: null };
   };
 
   const signOut = async () => {

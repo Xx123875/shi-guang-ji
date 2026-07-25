@@ -51,14 +51,9 @@ export default function LoginPage() {
       const { error } = await signUp(email.trim(), password);
       setLoading(false);
       if (error) {
-        // 检查是否是触发器错误（profiles 表插入失败）
-        if (error.includes('Database error') || error.includes('trigger')) {
-          setError('注册时创建资料失败，请稍后重试');
-        } else {
-          setError(error);
-        }
+        setError(error);
       } else {
-        setSuccessMsg('注册成功！请登录你的账户');
+        setSuccessMsg('注册成功！');
         setIsRegister(false);
         setPassword('');
         setConfirmPassword('');
